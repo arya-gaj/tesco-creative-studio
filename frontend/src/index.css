@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+  
+  body {
+    @apply m-0 antialiased;
+    font-family: 'Roboto Condensed', 'Oswald', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #ffffff;
+    color: #2d373c;
+    overflow: hidden;
+  }
+  
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-400 rounded-none;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-500;
+  }
+}
+
+@layer utilities {
+  .bg-grid-slate-200 {
+    background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+                      linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
