@@ -6,30 +6,6 @@ export default function LandingPage() {
   const navigate = useNavigate()
   const [isInitializing, setIsInitializing] = useState(false)
   const [scanProgress, setScanProgress] = useState(0)
-  const [dataLines, setDataLines] = useState([])
-
-  useEffect(() => {
-    const lines = [
-      '> SYSTEM INITIALIZATION SEQUENCE STARTED',
-      '> LOADING CORE MODULES...',
-      '> CONNECTING TO AI ENGINE...',
-      '> VERIFYING ASSET LIBRARY...',
-      '> CALIBRATING CANVAS RESOLUTION...',
-      '> ESTABLISHING BLOCKCHAIN CONNECTION...',
-      '> ALL SYSTEMS OPERATIONAL',
-    ]
-
-    const interval = setInterval(() => {
-      setDataLines(prev => {
-        if (prev.length < lines.length) {
-          return [...prev, lines[prev.length]]
-        }
-        return prev
-      })
-    }, 800)
-
-    return () => clearInterval(interval)
-  }, [])
 
   const handleInitialize = () => {
     setIsInitializing(true)
@@ -55,103 +31,129 @@ export default function LandingPage() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="h-screen w-screen overflow-hidden relative bg-white"
+      className="h-screen w-screen overflow-hidden relative bg-gradient-to-br from-slate-50 via-white to-blue-50"
     >
-      <div className="absolute inset-0 bg-grid-slate-200 opacity-30" />
+      <div className="absolute inset-0 bg-grid-enterprise opacity-5" />
 
       <div className="absolute inset-0 flex flex-col z-10">
         <div className="flex-1 flex items-center justify-center px-8 py-4">
-          <div className="w-full max-w-4xl">
-            <motion.h1
+          <div className="w-full max-w-5xl">
+            <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-5xl md:text-7xl font-black text-[#003349] uppercase tracking-tighter mb-2"
-              style={{ fontFamily: 'Oswald, sans-serif', letterSpacing: '-0.05em' }}
+              className="mb-12"
             >
-              TESCO CREATIVE STUDIO
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-xl md:text-2xl text-[#2d373c] uppercase tracking-wider mb-6"
-              style={{ fontFamily: 'Roboto Condensed, sans-serif', fontWeight: 300 }}
-            >
-              V1.0
-            </motion.p>
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-semibold text-slate-800 mb-3 tracking-tight" style={{ fontFamily: 'Inter, sans-serif' }}>
+                Clubcard Points Bandit Labs
+              </h1>
+              <p className="text-lg text-slate-600 font-light" style={{ fontFamily: 'Inter, sans-serif' }}>
+                Enterprise platform for AI-generated and blockchain-verified retail creatives
+              </p>
+            </motion.div>
 
-            <div className="space-y-4">
-              <div className="bg-slate-50 border border-slate-300 rounded-md p-4 h-48 overflow-hidden">
-                <div className="font-mono text-xs text-[#2d373c] space-y-0.5 h-full overflow-y-auto">
-                  <AnimatePresence>
-                    {dataLines.map((line, idx) => (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        {line}
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                  {dataLines.length === 7 && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.5 }}
-                      className="text-[#ec6608] mt-2"
-                    >
-                      {'> READY FOR INITIALIZATION'}
-                    </motion.div>
-                  )}
-                </div>
-              </div>
-
-              <motion.button
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-                onClick={handleInitialize}
-                disabled={isInitializing || dataLines.length < 7}
-                className="w-full bg-[#ec6608] hover:bg-[#d45a07] disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-4 border-2 border-[#ec6608] rounded-md transition-all uppercase tracking-wider text-lg"
-                style={{ fontFamily: 'Oswald, sans-serif' }}
+            <div className="grid grid-cols-3 gap-4 mb-8">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                className="bg-white/80 backdrop-blur-xl border border-slate-200/60 p-6 rounded-xl shadow-lg"
               >
-                {isInitializing ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <span>SYSTEM SCANNING...</span>
-                    <div className="w-full max-w-md h-2 bg-slate-200 border border-slate-400 rounded-md">
-                      <motion.div
-                        className="h-full bg-[#ec6608] rounded-md"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${scanProgress}%` }}
-                        transition={{ duration: 0.1 }}
-                      />
-                    </div>
-                    <span className="text-sm">{scanProgress}%</span>
-                  </div>
-                ) : (
-                  'INITIALIZE SEQUENCE'
-                )}
-              </motion.button>
+                <div className="w-8 h-8 mb-4 flex items-center justify-center border border-retail-cyan/30 rounded-lg bg-retail-cyan/10">
+                  <svg className="w-5 h-5 text-retail-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-base font-medium text-slate-800 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>Generate</h3>
+                <p className="text-sm text-slate-600 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  AI-driven layout generation with precise asset placement and background synthesis
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="bg-white/80 backdrop-blur-xl border border-slate-200/60 p-6 rounded-xl shadow-lg"
+              >
+                <div className="w-8 h-8 mb-4 flex items-center justify-center border border-retail-cyan/30 rounded-lg bg-retail-cyan/10">
+                  <svg className="w-5 h-5 text-retail-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <h3 className="text-base font-medium text-slate-800 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>Verify</h3>
+                <p className="text-sm text-slate-600 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  Blockchain-verified provenance with immutable audit trails and compliance records
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="bg-white/80 backdrop-blur-xl border border-slate-200/60 p-6 rounded-xl shadow-lg"
+              >
+                <div className="w-8 h-8 mb-4 flex items-center justify-center border border-retail-cyan/30 rounded-lg bg-retail-cyan/10">
+                  <svg className="w-5 h-5 text-retail-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                </div>
+                <h3 className="text-base font-medium text-slate-800 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>Deploy</h3>
+                <p className="text-sm text-slate-600 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  Production-ready creatives with full documentation and verification certificates
+                </p>
+              </motion.div>
             </div>
+
+            <motion.button
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              onClick={handleInitialize}
+              disabled={isInitializing}
+              className="w-full bg-retail-cyan hover:bg-retail-cyan/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-lg transition-all flex items-center justify-center gap-3 shadow-lg"
+              style={{ fontFamily: 'Inter, sans-serif' }}
+            >
+              {isInitializing ? (
+                <>
+                  <motion.svg
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </motion.svg>
+                  <span>Initializing Platform...</span>
+                  <span className="text-sm font-mono-tech">{scanProgress}%</span>
+                </>
+              ) : (
+                <>
+                  <span>Launch Studio</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </>
+              )}
+            </motion.button>
           </div>
         </div>
 
-        <div className="border-t border-slate-300 p-3 bg-slate-50">
-          <div className="flex items-center justify-between text-xs text-[#2d373c]" style={{ fontFamily: 'Roboto Condensed, sans-serif' }}>
-            <span>STATUS: {dataLines.length === 7 ? 'READY' : 'INITIALIZING'}</span>
+        <div className="border-t border-slate-200/60 p-4 bg-white/60 backdrop-blur-sm">
+          <div className="flex items-center justify-between text-xs text-slate-600" style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
+            <span>STATUS: {isInitializing ? 'INITIALIZING' : 'READY'}</span>
             <span>BUILD: 2025.01.01</span>
+            <span>VERSION: 1.0.0</span>
           </div>
         </div>
       </div>
 
-      <svg className="absolute inset-0 pointer-events-none opacity-10" style={{ mixBlendMode: 'multiply' }}>
+      <svg className="absolute inset-0 pointer-events-none opacity-5" style={{ mixBlendMode: 'screen' }}>
         <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#003349" strokeWidth="1" />
+          <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+            <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#38e8ff" strokeWidth="0.5" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />

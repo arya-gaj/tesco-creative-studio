@@ -1,1 +1,1 @@
-# Tesco Creative Studio
+# Clubcard Points Bandit Labs

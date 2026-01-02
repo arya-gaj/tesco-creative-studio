@@ -7,9 +7,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        'tesco-blue': '#00539f',
-        'tesco-blue-light': '#0066cc',
-        'tesco-blue-dark': '#003d7a',
+        'carbon': '#0a0d12',
+        'graphite': '#111827',
+        'retail-cyan': '#38e8ff',
+        'soft-white': '#e5e7eb',
+        'muted-gray': '#9ca3af',
       },
       backdropBlur: {
         xs: '2px',

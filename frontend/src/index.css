@@ -9,35 +9,65 @@
   
   body {
     @apply m-0 antialiased;
-    font-family: 'Roboto Condensed', 'Oswald', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Inter', 'Manrope', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background: #ffffff;
-    color: #2d373c;
+    background: #f8fafc;
+    color: #1e293b;
     overflow: hidden;
   }
   
   ::-webkit-scrollbar {
-    @apply w-2;
+    width: 6px;
+    height: 6px;
   }
   
   ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+    background: transparent;
   }
   
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-400 rounded-none;
+    background: rgba(148, 163, 184, 0.2);
+    border-radius: 3px;
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-500;
+    background: rgba(148, 163, 184, 0.3);
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 2px;
+    transition: background 0.2s;
+  }
+  
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb,
+  .scrollbar-thin:active::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.4);
   }
 }
 
 @layer utilities {
-  .bg-grid-slate-200 {
-    background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px),
-                      linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
-    background-size: 20px 20px;
+  .bg-grid-enterprise {
+    background-image: linear-gradient(to right, rgba(57, 232, 255, 0.05) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(57, 232, 255, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  
+  .font-mono-tech {
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', 'Courier New', monospace;
   }
 }
