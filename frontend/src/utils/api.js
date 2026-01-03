@@ -90,3 +90,57 @@ export const verifyAndCommit = async (canvasState, metadata = null) => {
     return { hash: 'N/A', block_id: 'N/A', message: 'Verification endpoint not implemented' }
   }
 }
+
+export const removeBackground = async (imageBase64) => {
+  try {
+    const response = await apiRequest('/remove-background', {
+      method: 'POST',
+      body: {
+        image_base64: imageBase64
+      },
+    })
+    return response
+  } catch (error) {
+    console.error('Background removal failed:', error.message)
+    throw error
+  }
+}
+
+export const getAssetInfo = async (assetUrl) => {
+  try {
+    const path = assetUrl.replace('http://localhost:8000', '').replace('http://127.0.0.1:8000', '')
+    const response = await apiRequest(`/asset-info?path=${encodeURIComponent(path)}`, {
+      method: 'GET',
+    })
+    return response
+  } catch (error) {
+    console.error('[API] Failed to get asset info:', error.message)
+    return { description: null, category: null }
+  }
+}
+
+export const getAssetPosition = async (canvasElements, assetUrl, assetDescription, assetCategory, canvasWidth = 1080, canvasHeight = 1920) => {
+  try {
+    console.log('[API] Requesting strategic position for asset:', assetUrl)
+    console.log('[API] Asset description:', assetDescription)
+    console.log('[API] Asset category:', assetCategory)
+    console.log('[API] Canvas elements:', canvasElements.length)
+    const response = await apiRequest('/asset-position', {
+      method: 'POST',
+      body: {
+        canvas_elements: canvasElements,
+        asset_url: assetUrl,
+        asset_description: assetDescription,
+        asset_category: assetCategory,
+        canvas_width: canvasWidth,
+        canvas_height: canvasHeight
+      },
+    })
+    console.log('[API] Received strategic position:', response)
+    return response
+  } catch (error) {
+    console.error('[API] Asset positioning failed:', error.message)
+    console.error('[API] Error details:', error)
+    return { x: 200, y: 200, width: 400, height: 400 }
+  }
+}

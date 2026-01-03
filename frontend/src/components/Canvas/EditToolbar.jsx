@@ -53,6 +53,18 @@ export default function EditToolbar({
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => onToolChange(null)}
+            className={`p-2 border rounded-xl transition-all ${!activeTool ? 'bg-retail-cyan border-retail-cyan text-white' : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'}`}
+            title="Select & Move"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+            </svg>
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setShowTextInput(!showTextInput)}
             className={`p-2 border rounded-lg transition-all ${activeTool === 'text' ? 'bg-retail-cyan border-retail-cyan text-white' : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'}`}
             title="Add Text"

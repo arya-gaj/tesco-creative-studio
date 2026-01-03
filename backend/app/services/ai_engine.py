@@ -285,3 +285,185 @@ Generate a neutral background description:"""
         except Exception as e:
             print(f"Error generating background description: {e}")
             return "Clean, neutral background suitable for product display"
+    
+    async def get_asset_position(
+        self,
+        canvas_elements: List[Dict[str, Any]],
+        asset_url: str,
+        asset_description: Optional[str] = None,
+        asset_category: Optional[str] = None,
+        canvas_width: int = 1080,
+        canvas_height: int = 1920
+    ) -> Dict[str, Any]:
+        if not self.client:
+            return self._default_position(canvas_elements, canvas_width, canvas_height)
+        
+        system_prompt = """You are a creative layout assistant for Instagram Stories (1080x1920 vertical format).
+
+Given existing elements on the canvas and a new product asset with its description, determine the BEST UNIQUE position (x, y) and size (width, height) for strategic placement.
+
+CRITICAL RULES:
+- Canvas is 1080px wide x 1920px tall (vertical/portrait)
+- AVOID overlapping with existing elements by at least 50px margin
+- Each product MUST be placed in a DIFFERENT location - use variety in positioning
+- Use rule of thirds: place products at 1/3 or 2/3 horizontal positions (360px, 720px)
+- Vary vertical placement: top third (200-600px), middle third (600-1200px), or bottom third (1200-1700px)
+- For product images: typical width 300-500px, maintain aspect ratio
+- Consider the product type when placing:
+  * Food items: often work well in middle-left or middle-right
+  * Beverages: can be placed vertically centered or bottom third
+  * Personal care: top or middle sections work well
+  * Large products: use larger sizes (400-500px width)
+  * Small products: use smaller sizes (250-350px width)
+- Create visual balance: if one product is left, place next one right or center
+- Ensure products are prominent but don't dominate the entire canvas
+- Leave safe zones: avoid top 100px and bottom 200px for UI elements
+- NEVER place two products in the same spot - always vary positions
+
+Return ONLY valid JSON, no markdown, no code blocks, just the JSON object:
+{
+  "x": number,
+  "y": number,
+  "width": number,
+  "height": number
+}"""
+
+        existing_elements = []
+        for elem in canvas_elements:
+            existing_elements.append({
+                "type": elem.get("type", "unknown"),
+                "x": elem.get("x", 0),
+                "y": elem.get("y", 0),
+                "width": elem.get("width", 0),
+                "height": elem.get("height", 0)
+            })
+        
+        asset_info = f"Asset URL: {asset_url}"
+        if asset_description:
+            asset_info += f"\nProduct Description: {asset_description}"
+        if asset_category:
+            asset_info += f"\nProduct Category: {asset_category}"
+        
+        user_message = f"""Canvas dimensions: {canvas_width}x{canvas_height}
+Existing elements on canvas: {json.dumps(existing_elements, indent=2)}
+
+{asset_info}
+
+IMPORTANT: This product must be placed in a DIFFERENT location from existing elements. Analyze the product description to determine the best strategic position. Consider the product type, size, and create visual variety.
+
+Determine optimal UNIQUE position and size for this specific product. Return JSON with x, y, width, height."""
+
+        try:
+            response = self.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=500,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}]
+            )
+            
+            result_text = response.content[0].text.strip()
+            
+            if result_text.startswith("```json"):
+                result_text = result_text.replace("```json", "").replace("```", "").strip()
+            elif result_text.startswith("```"):
+                result_text = result_text.replace("```", "").strip()
+            
+            result_json = json.loads(result_text)
+            
+            x = max(50, min(canvas_width - 150, int(result_json.get("x", canvas_width // 2 - 200))))
+            y = max(100, min(canvas_height - 300, int(result_json.get("y", canvas_height // 2 - 200))))
+            width = max(200, min(600, int(result_json.get("width", 400))))
+            height = max(200, min(800, int(result_json.get("height", 400))))
+            
+            print(f"[AIEngine] Strategic position from Claude: x={x}, y={y}, w={width}, h={height}")
+            
+            return {
+                "x": x,
+                "y": y,
+                "width": width,
+                "height": height
+            }
+            
+        except json.JSONDecodeError as e:
+            print(f"Error parsing Claude JSON response: {e}")
+            print(f"Response text: {result_text[:200]}")
+            return self._default_position(canvas_elements, canvas_width, canvas_height)
+        except Exception as e:
+            print(f"Error getting asset position with Claude: {e}")
+            import traceback
+            traceback.print_exc()
+            return self._default_position(canvas_elements, canvas_width, canvas_height)
+    
+    def _default_position(self, canvas_elements: List[Dict[str, Any]], canvas_width: int, canvas_height: int) -> Dict[str, Any]:
+        if not canvas_elements:
+            return {
+                "x": canvas_width // 3 - 200,
+                "y": canvas_height // 2 - 200,
+                "width": 400,
+                "height": 400
+            }
+        
+        occupied_areas = []
+        for elem in canvas_elements:
+            occupied_areas.append({
+                "x1": elem.get("x", 0) - 50,
+                "y1": elem.get("y", 0) - 50,
+                "x2": elem.get("x", 0) + elem.get("width", 0) + 50,
+                "y2": elem.get("y", 0) + elem.get("height", 0) + 50
+            })
+        
+        positions_to_try = [
+            (canvas_width // 3 - 200, 300),
+            (canvas_width * 2 // 3 - 200, 400),
+            (canvas_width // 2 - 200, 600),
+            (canvas_width // 4, canvas_height // 2 - 200),
+            (canvas_width * 3 // 4 - 400, canvas_height // 2 - 200),
+            (canvas_width // 3 - 200, canvas_height * 2 // 3 - 400),
+            (canvas_width * 2 // 3 - 200, canvas_height // 3),
+            (100, canvas_height // 2 - 200),
+            (canvas_width - 500, canvas_height // 2 - 200),
+        ]
+        
+        for x, y in positions_to_try:
+            overlaps = False
+            for area in occupied_areas:
+                if not (x + 400 < area["x1"] or x > area["x2"] or y + 400 < area["y1"] or y > area["y2"]):
+                    overlaps = True
+                    break
+            if not overlaps:
+                return {
+                    "x": max(50, min(canvas_width - 450, x)),
+                    "y": max(100, min(canvas_height - 500, y)),
+                    "width": 400,
+                    "height": 400
+                }
+        
+        import random
+        attempts = 0
+        while attempts < 20:
+            x = random.randint(100, canvas_width - 500)
+            y = random.randint(200, canvas_height - 600)
+            overlaps = False
+            for area in occupied_areas:
+                if not (x + 400 < area["x1"] or x > area["x2"] or y + 400 < area["y1"] or y > area["y2"]):
+                    overlaps = True
+                    break
+            if not overlaps:
+                return {
+                    "x": x,
+                    "y": y,
+                    "width": 400,
+                    "height": 400
+                }
+            attempts += 1
+        
+        last_element = canvas_elements[-1]
+        x = (last_element.get("x", 200) + last_element.get("width", 400) + 100) % (canvas_width - 450)
+        y = (last_element.get("y", 200) + 100) % (canvas_height - 500)
+        
+        return {
+            "x": max(50, min(canvas_width - 450, x)),
+            "y": max(100, min(canvas_height - 500, y)),
+            "width": 400,
+            "height": 400
+        }

@@ -18,7 +18,7 @@ function AssetThumbnail({ asset, isSelected, onSelect }) {
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
       onClick={() => onSelect(asset)}
-      className={`relative cursor-pointer bg-white border border-slate-300 rounded-xl overflow-hidden transition-all shadow-sm ${
+      className={`relative cursor-move bg-white border border-slate-300 rounded-xl overflow-hidden transition-all shadow-sm ${
         isSelected ? 'border-retail-cyan' : 'border-muted-gray/20 hover:border-muted-gray/40'
       }`}
     >
@@ -49,8 +49,37 @@ function AssetThumbnail({ asset, isSelected, onSelect }) {
       <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 px-2 py-1.5">
         <p className="text-xs text-slate-700 text-center truncate" style={{ fontFamily: 'Inter, sans-serif' }}>Product Asset</p>
       </div>
+      <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-sm border border-slate-300 rounded-lg p-1.5 shadow-sm">
+        <svg 
+          width="16" 
+          height="16" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2.5" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className="text-slate-700"
+        >
+          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          <circle cx="12" cy="12" r="2" fill="currentColor" />
+        </svg>
+      </div>
       {isSelected && (
-        <div className="absolute top-2 right-2 w-2 h-2 bg-retail-cyan rounded-full" />
+        <div className="absolute top-2 left-2 bg-retail-cyan text-white rounded-full p-1 shadow-sm">
+          <svg 
+            width="12" 
+            height="12" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2.5" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </div>
       )}
     </motion.div>
   )

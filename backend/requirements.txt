@@ -5,5 +5,9 @@ anthropic>=0.40.0
 python-multipart>=0.0.12
 python-dotenv>=1.0.0
 Pillow>=10.2.0
-# rembg==2.0.50  # Optional: uncomment if you need background removal
+diffusers>=0.24.0
+transformers>=4.35.0
+torch>=2.1.0
+accelerate>=0.24.0
+rembg==2.0.50
 

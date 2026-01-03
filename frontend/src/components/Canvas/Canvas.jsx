@@ -3,6 +3,8 @@ import useImage from 'use-image'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import EditToolbar from './EditToolbar'
 import PropertiesPanel from './PropertiesPanel'
+import { removeBackground, getAssetPosition, getAssetInfo } from '../../utils/api'
+import { getRandomPosition, adjustPositionForAspectRatio } from '../../utils/assetPositioning'
 
 export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset, onAssetAdded }) {
   const [scale, setScale] = useState(1)
@@ -37,6 +39,22 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
   const elementRefs = useRef({})
   const lastAssetUrlRef = useRef(null)
 
+  const handleMouseEnter = (e) => {
+    if (!activeTool || activeTool === 'select') {
+      const stage = e.target.getStage()
+      if (stage && stage.content()) {
+        stage.content().style.cursor = 'move'
+      }
+    }
+  }
+
+  const handleMouseLeave = (e) => {
+    const stage = e.target.getStage()
+    if (stage && stage.content()) {
+      stage.content().style.cursor = 'default'
+    }
+  }
+
   useEffect(() => {
     if (selectedAsset && selectedAsset.url) {
       const assetUrl = selectedAsset.url
@@ -51,30 +69,118 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
       const img = new window.Image()
       img.src = assetUrl
       
-      img.onload = () => {
+      img.onload = async () => {
         console.log('[Canvas] Image loaded successfully')
-        const newElement = {
-          id: `image-${Date.now()}-${Math.random()}`,
-          type: 'image',
-          url: assetUrl,
-          image: img,
-          x: 200,
-          y: 200,
-          width: 400,
-          height: 400,
-          rotation: 0,
-          scaleX: 1,
-          scaleY: 1
+        
+        const canvasElements = elements.map(el => ({
+          type: el.type,
+          x: el.x,
+          y: el.y,
+          width: el.width,
+          height: el.height
+        }))
+        
+        const imageCount = elements.filter(el => el.type === 'image').length
+        
+        try {
+          console.log('[Canvas] Fetching asset metadata...')
+          const assetInfo = await getAssetInfo(assetUrl)
+          console.log('[Canvas] Asset info:', assetInfo)
+          
+          console.log('[Canvas] Requesting strategic position from Claude API...')
+          let position
+          try {
+            position = await getAssetPosition(
+              canvasElements,
+              assetUrl,
+              assetInfo.description || null,
+              assetInfo.category || null,
+              stageSize.width,
+              stageSize.height
+            )
+            console.log('[Canvas] Received strategic position from Claude:', position)
+          } catch (apiError) {
+            console.warn('[Canvas] Claude API failed, using random positioning:', apiError)
+            position = null
+          }
+          
+          const checkClaudePosition = (pos) => {
+            if (!pos || !pos.x || !pos.y) return false
+            for (const elem of canvasElements) {
+              const margin = 50
+              const elemRight = elem.x + elem.width + margin
+              const elemBottom = elem.y + elem.height + margin
+              const posRight = pos.x + (pos.width || 400) + margin
+              const posBottom = pos.y + (pos.height || 400) + margin
+              
+              if (!(posRight < elem.x || pos.x > elemRight || posBottom < elem.y || pos.y > elemBottom)) {
+                return false
+              }
+            }
+            return true
+          }
+          
+          if (!position || !position.x || !position.y || !checkClaudePosition(position)) {
+            console.log('[Canvas] Using random positioning for asset index:', imageCount)
+            const randomPos = getRandomPosition(canvasElements, stageSize.width, stageSize.height, imageCount)
+            position = adjustPositionForAspectRatio(randomPos, img.width / img.height)
+            console.log('[Canvas] Random position calculated:', position)
+          } else {
+            const aspectRatio = img.width / img.height
+            position = adjustPositionForAspectRatio(position, aspectRatio)
+            console.log('[Canvas] Using Claude position (adjusted for aspect ratio):', position)
+          }
+          
+          const newElement = {
+            id: `image-${Date.now()}-${Math.random()}`,
+            type: 'image',
+            url: assetUrl,
+            image: img,
+            x: position.x,
+            y: position.y,
+            width: position.width,
+            height: position.height,
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1
+          }
+          
+          console.log('[Canvas] Adding element with position:', newElement.id, {
+            x: newElement.x,
+            y: newElement.y,
+            width: newElement.width,
+            height: newElement.height
+          })
+          setElements(prev => {
+            const updated = [...prev, newElement]
+            console.log('[Canvas] Total elements now:', updated.length)
+            return updated
+          })
+          
+          setSelectedElementId(newElement.id)
+        } catch (error) {
+          console.error('[Canvas] Failed to position asset, using fallback:', error)
+          const aspectRatio = img.width / img.height
+          const fallbackPos = getRandomPosition(canvasElements, stageSize.width, stageSize.height, imageCount)
+          const adjustedPos = adjustPositionForAspectRatio(fallbackPos, aspectRatio)
+          
+          const newElement = {
+            id: `image-${Date.now()}-${Math.random()}`,
+            type: 'image',
+            url: assetUrl,
+            image: img,
+            x: adjustedPos.x,
+            y: adjustedPos.y,
+            width: adjustedPos.width,
+            height: adjustedPos.height,
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1
+          }
+          
+          setElements(prev => [...prev, newElement])
+          setSelectedElementId(newElement.id)
         }
-        
-        console.log('[Canvas] Adding element to canvas:', newElement.id)
-        setElements(prev => {
-          const updated = [...prev, newElement]
-          console.log('[Canvas] Total elements now:', updated.length)
-          return updated
-        })
-        
-        setSelectedElementId(newElement.id)
         
         setTimeout(() => {
           lastAssetUrlRef.current = null
@@ -210,13 +316,45 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
     setSelectedElementId(elementId)
   }
 
+  const handleElementClickDirect = (e, elementId) => {
+    if (e && e.evt) {
+      e.evt.stopPropagation()
+      e.evt.preventDefault()
+    }
+    setActiveTool(null)
+    setSelectedElementId(elementId)
+  }
+
+  const handleRightClickMove = (e, elementId) => {
+    if (e && e.evt) {
+      e.evt.preventDefault()
+      e.evt.stopPropagation()
+    }
+    setActiveTool(null)
+    setSelectedElementId(elementId)
+    const node = elementRefs.current[elementId]
+    if (node) {
+      node.startDrag()
+    }
+  }
+
   const handleStageClick = (e) => {
     const stage = e.target.getStage()
     const target = e.target
-    const isImage = target.getClassName && target.getClassName() === 'Image'
-    const isTransformer = target.getClassName && target.getClassName() === 'Transformer'
+    const className = target.getClassName ? target.getClassName() : ''
+    const isImage = className === 'Image'
+    const isTransformer = className === 'Transformer'
+    const isRect = className === 'Rect'
+    const isCircle = className === 'Circle'
+    const isLine = className === 'Line'
+    const isText = className === 'Text'
+    const isGroup = className === 'Group'
     
-    if (target === stage || (!isImage && !isTransformer && target.getParent && target.getParent() === stage.getLayers()[0])) {
+    if (isImage || isTransformer || isRect || isCircle || isLine || isText || isGroup) {
+      return
+    }
+    
+    if (target === stage || (target.getParent && target.getParent() === stage.getLayers()[0])) {
       console.log('[Canvas] Stage clicked (empty), deselecting')
       setSelectedElementId(null)
       setActiveTool(null)
@@ -233,14 +371,16 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
     }
     
     if (className === 'Image' || className === 'Rect' || className === 'Circle' || className === 'Line' || className === 'Text' || className === 'Group') {
-      if (!activeTool) {
+      if (activeTool && activeTool !== 'select') {
         return
       }
+      setActiveTool(null)
+      return
     }
     
     const clickedOnEmpty = target === stage || (target.getParent && target.getParent() === stage.getLayers()[0])
     
-    if (!clickedOnEmpty && !activeTool) {
+    if (!clickedOnEmpty && activeTool) {
       return
     }
 
@@ -432,11 +572,74 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
     }
   }
 
-  const handleRemoveBackground = () => {
+  const handleRemoveBackground = async () => {
     if (selectedElementId) {
       const element = elements.find(el => el.id === selectedElementId)
       if (element && element.type === 'image') {
-        console.log('Remove background functionality - requires backend API call')
+        try {
+          console.log('[Canvas] Removing background from image:', element.id)
+          
+          let imageBase64 = null
+          
+          if (element.url) {
+            const response = await fetch(element.url)
+            const blob = await response.blob()
+            const reader = new FileReader()
+            reader.onloadend = async () => {
+              const base64 = reader.result.split(',')[1]
+              try {
+                const bgResponse = await removeBackground(base64)
+                if (bgResponse.success && bgResponse.image_base64) {
+                  const img = new window.Image()
+                  img.crossOrigin = 'anonymous'
+                  img.onload = () => {
+                    updateElement(element.id, {
+                      image: img,
+                      url: element.url
+                    })
+                    console.log('[Canvas] Background removed successfully')
+                  }
+                  img.src = `data:image/png;base64,${bgResponse.image_base64}`
+                }
+              } catch (error) {
+                console.error('[Canvas] Background removal failed:', error)
+                alert('Failed to remove background: ' + error.message)
+              }
+            }
+            reader.readAsDataURL(blob)
+            return
+          } else if (element.image) {
+            const img = element.image
+            const canvas = document.createElement('canvas')
+            canvas.width = img.width || img.naturalWidth || 500
+            canvas.height = img.height || img.naturalHeight || 500
+            const ctx = canvas.getContext('2d')
+            ctx.drawImage(img, 0, 0)
+            imageBase64 = canvas.toDataURL('image/png').split(',')[1]
+          }
+          
+          if (!imageBase64) {
+            alert('Could not extract image data for background removal')
+            return
+          }
+          
+          const response = await removeBackground(imageBase64)
+          
+          if (response.success && response.image_base64) {
+            const img = new window.Image()
+            img.crossOrigin = 'anonymous'
+            img.onload = () => {
+              updateElement(element.id, {
+                image: img
+              })
+              console.log('[Canvas] Background removed successfully')
+            }
+            img.src = `data:image/png;base64,${response.image_base64}`
+          }
+        } catch (error) {
+          console.error('[Canvas] Background removal failed:', error)
+          alert('Failed to remove background: ' + error.message)
+        }
       }
     }
   }
@@ -574,7 +777,7 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
               if (element.type === 'image' && element.image) {
                 console.log('[Canvas] Rendering image:', element.id, 'at', element.x, element.y)
                 return (
-                  <KonvaImage
+                  <Group
                     key={element.id}
                     ref={(node) => {
                       if (node) {
@@ -582,17 +785,13 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                         console.log('[Canvas] Image ref set:', element.id)
                       }
                     }}
-                    image={element.image}
                     x={element.x * scale}
                     y={element.y * scale}
-                    width={element.width * scale}
-                    height={element.height * scale}
                     rotation={element.rotation || 0}
                     scaleX={element.scaleX || 1}
                     scaleY={element.scaleY || 1}
                     draggable={true}
                     listening={true}
-                    perfectDrawEnabled={false}
                     hitFunc={(ctx, shape) => {
                       const width = element.width * scale
                       const height = element.height * scale
@@ -602,38 +801,22 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                       ctx.fill()
                     }}
                     onMouseDown={(e) => {
-                      if (activeTool) {
-                        return
+                      if (e.evt && e.evt.shiftKey) {
+                        handleRightClickMove(e, element.id)
+                      } else if (e.evt && e.evt.button === 2) {
+                        handleRightClickMove(e, element.id)
+                      } else {
+                        handleElementClickDirect(e, element.id)
                       }
-                      const evt = e.evt
-                      if (evt) {
-                        evt.stopPropagation()
-                      }
-                      setActiveTool(null)
-                      setSelectedElementId(element.id)
                     }}
-                    onClick={(e) => {
-                      if (activeTool) {
-                        return
-                      }
-                      const evt = e.evt
-                      if (evt) {
-                        evt.stopPropagation()
-                      }
-                      setActiveTool(null)
-                      setSelectedElementId(element.id)
+                    onClick={(e) => handleElementClickDirect(e, element.id)}
+                    onTap={(e) => handleElementClickDirect(e, element.id)}
+                    onContextMenu={(e) => {
+                      e.evt.preventDefault()
+                      handleRightClickMove(e, element.id)
                     }}
-                    onTap={(e) => {
-                      if (activeTool) {
-                        return
-                      }
-                      const evt = e.evt
-                      if (evt) {
-                        evt.stopPropagation()
-                      }
-                      setActiveTool(null)
-                      setSelectedElementId(element.id)
-                    }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                     onDragStart={(e) => {
                       setActiveTool(null)
                     }}
@@ -665,15 +848,75 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                         updateElement(element.id, {
                           x: node.x() / scale,
                           y: node.y() / scale,
-                          width: Math.max(50, node.width() * scaleX / scale),
-                          height: Math.max(50, node.height() * scaleY / scale),
+                          width: Math.max(50, element.width * scaleX),
+                          height: Math.max(50, element.height * scaleY),
                           rotation: node.rotation(),
                           scaleX: scaleX,
                           scaleY: scaleY
                         })
                       }
                     }}
-                  />
+                  >
+                    <KonvaImage
+                      image={element.image}
+                      x={0}
+                      y={0}
+                      width={element.width * scale}
+                      height={element.height * scale}
+                      perfectDrawEnabled={false}
+                      listening={true}
+                      draggable={false}
+                      hitFunc={(ctx, shape) => {
+                        const width = element.width * scale
+                        const height = element.height * scale
+                        ctx.beginPath()
+                        ctx.rect(0, 0, width, height)
+                        ctx.fillStyle = 'black'
+                        ctx.fill()
+                      }}
+                    />
+                    <Group
+                      x={element.width * scale - 24}
+                      y={4}
+                      listening={false}
+                    >
+                      <Rect
+                        x={0}
+                        y={0}
+                        width={20}
+                        height={20}
+                        fill="white"
+                        opacity={0.9}
+                        cornerRadius={4}
+                        shadowBlur={4}
+                        shadowColor="black"
+                        shadowOpacity={0.3}
+                      />
+                      <Shape
+                        sceneFunc={(ctx, shape) => {
+                          ctx.beginPath()
+                          ctx.moveTo(10, 4)
+                          ctx.lineTo(10, 16)
+                          ctx.moveTo(4, 10)
+                          ctx.lineTo(16, 10)
+                          ctx.moveTo(6, 6)
+                          ctx.lineTo(14, 14)
+                          ctx.moveTo(14, 6)
+                          ctx.lineTo(6, 14)
+                          ctx.strokeStyle = '#64748b'
+                          ctx.lineWidth = 2
+                          ctx.stroke()
+                          ctx.beginPath()
+                          ctx.arc(10, 10, 2, 0, Math.PI * 2)
+                          ctx.fillStyle = '#64748b'
+                          ctx.fill()
+                        }}
+                        fill="#64748b"
+                        stroke="#64748b"
+                        strokeWidth={2}
+                      />
+                    </Group>
+                  </Group>
                 )
               } else if (element.type === 'text') {
                 return (
@@ -703,8 +946,23 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                       ctx.fillStyle = 'transparent'
                       ctx.fill()
                     }}
-                    onClick={(e) => handleElementClick(e, element.id)}
-                    onTap={(e) => handleElementClick(e, element.id)}
+                    onMouseDown={(e) => {
+                      if (e.evt && e.evt.shiftKey) {
+                        handleRightClickMove(e, element.id)
+                      } else if (e.evt && e.evt.button === 2) {
+                        handleRightClickMove(e, element.id)
+                      } else {
+                        handleElementClickDirect(e, element.id)
+                      }
+                    }}
+                    onClick={(e) => handleElementClickDirect(e, element.id)}
+                    onTap={(e) => handleElementClickDirect(e, element.id)}
+                    onContextMenu={(e) => {
+                      e.evt.preventDefault()
+                      handleRightClickMove(e, element.id)
+                    }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                     onDragEnd={(e) => {
                       updateElement(element.id, {
                         x: e.target.x() / scale,
@@ -758,38 +1016,22 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                       ctx.fill()
                     }}
                     onMouseDown={(e) => {
-                      if (activeTool) {
-                        return
+                      if (e.evt && e.evt.shiftKey) {
+                        handleRightClickMove(e, element.id)
+                      } else if (e.evt && e.evt.button === 2) {
+                        handleRightClickMove(e, element.id)
+                      } else {
+                        handleElementClickDirect(e, element.id)
                       }
-                      const evt = e.evt
-                      if (evt) {
-                        evt.stopPropagation()
-                      }
-                      setActiveTool(null)
-                      setSelectedElementId(element.id)
                     }}
-                    onClick={(e) => {
-                      if (activeTool) {
-                        return
-                      }
-                      const evt = e.evt
-                      if (evt) {
-                        evt.stopPropagation()
-                      }
-                      setActiveTool(null)
-                      setSelectedElementId(element.id)
+                    onClick={(e) => handleElementClickDirect(e, element.id)}
+                    onTap={(e) => handleElementClickDirect(e, element.id)}
+                    onContextMenu={(e) => {
+                      e.evt.preventDefault()
+                      handleRightClickMove(e, element.id)
                     }}
-                    onTap={(e) => {
-                      if (activeTool) {
-                        return
-                      }
-                      const evt = e.evt
-                      if (evt) {
-                        evt.stopPropagation()
-                      }
-                      setActiveTool(null)
-                      setSelectedElementId(element.id)
-                    }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                     onDragStart={(e) => {
                       setActiveTool(null)
                     }}
@@ -873,8 +1115,23 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                       ctx.rect(0, 0, element.width * scale, element.height * scale)
                       ctx.fillStrokeShape(shape)
                     }}
-                    onClick={(e) => handleElementClick(e, element.id)}
-                    onTap={(e) => handleElementClick(e, element.id)}
+                    onMouseDown={(e) => {
+                      if (e.evt && e.evt.shiftKey) {
+                        handleRightClickMove(e, element.id)
+                      } else if (e.evt && e.evt.button === 2) {
+                        handleRightClickMove(e, element.id)
+                      } else {
+                        handleElementClickDirect(e, element.id)
+                      }
+                    }}
+                    onClick={(e) => handleElementClickDirect(e, element.id)}
+                    onTap={(e) => handleElementClickDirect(e, element.id)}
+                    onContextMenu={(e) => {
+                      e.evt.preventDefault()
+                      handleRightClickMove(e, element.id)
+                    }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                     onDragEnd={(e) => {
                       updateElement(element.id, {
                         x: e.target.x() / scale,
@@ -924,8 +1181,10 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                       ctx.arc(0, 0, element.radius * scale, 0, Math.PI * 2)
                       ctx.fillStrokeShape(shape)
                     }}
-                    onClick={(e) => handleElementClick(e, element.id)}
-                    onTap={(e) => handleElementClick(e, element.id)}
+                    onClick={(e) => handleElementClickDirect(e, element.id)}
+                    onTap={(e) => handleElementClickDirect(e, element.id)}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                     onDragEnd={(e) => {
                       updateElement(element.id, {
                         x: e.target.x() / scale,
@@ -981,8 +1240,23 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                       ctx.strokeStyle = element.stroke || '#64748b'
                       ctx.stroke()
                     }}
-                    onClick={(e) => handleElementClick(e, element.id)}
-                    onTap={(e) => handleElementClick(e, element.id)}
+                    onMouseDown={(e) => {
+                      if (e.evt && e.evt.shiftKey) {
+                        handleRightClickMove(e, element.id)
+                      } else if (e.evt && e.evt.button === 2) {
+                        handleRightClickMove(e, element.id)
+                      } else {
+                        handleElementClickDirect(e, element.id)
+                      }
+                    }}
+                    onClick={(e) => handleElementClickDirect(e, element.id)}
+                    onTap={(e) => handleElementClickDirect(e, element.id)}
+                    onContextMenu={(e) => {
+                      e.evt.preventDefault()
+                      handleRightClickMove(e, element.id)
+                    }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                     onDragEnd={(e) => {
                       const node = elementRefs.current[element.id]
                       if (node) {
@@ -1059,8 +1333,23 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
                       ctx.fillStyle = 'transparent'
                       ctx.fill()
                     }}
-                    onClick={(e) => handleElementClick(e, element.id)}
-                    onTap={(e) => handleElementClick(e, element.id)}
+                    onMouseDown={(e) => {
+                      if (e.evt && e.evt.shiftKey) {
+                        handleRightClickMove(e, element.id)
+                      } else if (e.evt && e.evt.button === 2) {
+                        handleRightClickMove(e, element.id)
+                      } else {
+                        handleElementClickDirect(e, element.id)
+                      }
+                    }}
+                    onClick={(e) => handleElementClickDirect(e, element.id)}
+                    onTap={(e) => handleElementClickDirect(e, element.id)}
+                    onContextMenu={(e) => {
+                      e.evt.preventDefault()
+                      handleRightClickMove(e, element.id)
+                    }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                     onDragEnd={(e) => {
                       const node = elementRefs.current[element.id]
                       if (node) {
