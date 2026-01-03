@@ -1,1 +1,5 @@
 <img width="1920" height="1020" alt="2026_CBIT-CDC_TRMPhoto_v1" src="https://github.com/user-attachments/assets/fd9c4982-5cc5-4208-976e-f745e18bce10" />
+
+&nbsp;
+
+Clubcard Points Bandit Lab is a trustable AI-first framework built exclusively for Tesco retail media that automates compliant high-quality creative generation for the Clubcard ecosystem. It converts simple text prompts into Instagram Story–sized creatives using local Stable Diffusion for background generation and Claude-powered intelligence for prompt normalization and layout decisions. The platform reads product inventory in real time to select only in-stock and approved items for promotion. A visual canvas editor enables fast creative control while automatic background removal prepares product assets. Each finalized creative is encrypted and hashed then written to a Hyperledger Fabric ledger to prevent fraud and ensure traceability. The ledger also enables independent auditing governance reviews and long-term accountability across creative workflows.
