@@ -246,24 +246,59 @@ Recommend ONLY assets that match "{prompt}". Return JSON array of sample_id valu
             recommended_ids = json.loads(recommendations_json)
             
             recommended_paths = []
-            for asset_id in recommended_ids[:max_assets]:
+            seen_paths = set()
+            
+            for asset_id in recommended_ids:
                 asset = asset_manager.get_asset_by_id(str(asset_id))
-                if asset and asset.local_path:
+                if asset and asset.local_path and asset.local_path not in seen_paths:
                     recommended_paths.append(asset.local_path)
+                    seen_paths.add(asset.local_path)
+                    if len(recommended_paths) >= max_assets:
+                        break
             
             if len(recommended_paths) < max_assets:
-                keyword_results = asset_manager.search(prompt, limit=max_assets)
+                keyword_results = asset_manager.search(prompt, limit=max_assets * 2)
                 for result in keyword_results:
-                    if result not in recommended_paths:
+                    if result not in seen_paths:
                         recommended_paths.append(result)
+                        seen_paths.add(result)
                         if len(recommended_paths) >= max_assets:
                             break
             
-            return recommended_paths[:max_assets]
+            if len(recommended_paths) < max_assets:
+                all_asset_paths = [asset.local_path for asset in all_assets if asset.local_path and asset.local_path not in seen_paths]
+                import random
+                random.shuffle(all_asset_paths)
+                for path in all_asset_paths:
+                    if path not in seen_paths:
+                        recommended_paths.append(path)
+                        seen_paths.add(path)
+                        if len(recommended_paths) >= max_assets:
+                            break
+            
+            final_result = recommended_paths[:max_assets]
+            print(f"[AIEngine] Returning {len(final_result)} assets (requested {max_assets})")
+            if len(final_result) < max_assets:
+                print(f"[AIEngine] WARNING: Only {len(final_result)} assets available, requested {max_assets}")
+            
+            return final_result
             
         except Exception as e:
             print(f"Error recommending assets with Claude: {e}")
-            return asset_manager.search(prompt, limit=max_assets)
+            import traceback
+            traceback.print_exc()
+            keyword_results = asset_manager.search(prompt, limit=max_assets)
+            if len(keyword_results) < max_assets:
+                all_assets_list = asset_manager.get_all_assets()
+                all_paths = [asset.local_path for asset in all_assets_list if asset.local_path]
+                import random
+                random.shuffle(all_paths)
+                for path in all_paths:
+                    if path not in keyword_results:
+                        keyword_results.append(path)
+                        if len(keyword_results) >= max_assets:
+                            break
+            return keyword_results[:max_assets]
     
     async def generate_background_description(
         self,
