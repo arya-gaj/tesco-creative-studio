@@ -681,14 +681,20 @@ export default function Canvas({ imageBase64, onCanvasStateChange, selectedAsset
     const stage = stageRef.current
     const dataURL = stage.toDataURL({ 
       pixelRatio: 2,
-      mimeType: 'image/png',
-      quality: 0.95
+      mimeType: 'image/png'
     })
 
     const link = document.createElement('a')
-    link.download = `creative-${Date.now()}.png`
+    const timestamp = Date.now()
+    link.download = `creative-${timestamp}.png`
     link.href = dataURL
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
+    
+    setTimeout(() => {
+      URL.revokeObjectURL(dataURL)
+    }, 100)
   }
 
   const selectedElement = elements.find(el => el.id === selectedElementId)

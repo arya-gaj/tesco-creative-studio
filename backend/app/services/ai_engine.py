@@ -47,7 +47,7 @@ Normalize this request into a compliant, professional creative intent:"""
 
         try:
             response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-haiku-20240307",
                 max_tokens=500,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}]
@@ -122,23 +122,37 @@ Return valid JSON only:"""
 
         try:
             response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-haiku-20240307",
                 max_tokens=1000,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}]
             )
             
+            if not response or not response.content:
+                print(f"Error: Empty response from Claude API")
+                return self._default_toon(format, channel)
+            
             toon_json = response.content[0].text.strip()
+            print(f"[AIEngine] Raw TOON response: {toon_json[:200]}...")
+            
             if "```json" in toon_json:
                 toon_json = toon_json.split("```json")[1].split("```")[0].strip()
             elif "```" in toon_json:
                 toon_json = toon_json.split("```")[1].split("```")[0].strip()
             
+            print(f"[AIEngine] Parsed TOON JSON: {toon_json[:200]}...")
             toon = json.loads(toon_json)
+            print(f"[AIEngine] TOON generated successfully: {list(toon.keys())}")
             return toon
             
+        except json.JSONDecodeError as e:
+            print(f"Error parsing TOON JSON from Claude: {e}")
+            print(f"JSON string was: {toon_json[:500] if 'toon_json' in locals() else 'N/A'}")
+            return self._default_toon(format, channel)
         except Exception as e:
             print(f"Error generating TOON with Claude: {e}")
+            import traceback
+            traceback.print_exc()
             return self._default_toon(format, channel)
     
     def _default_toon(self, format: Optional[str], channel: Optional[str]) -> Dict[str, Any]:
@@ -194,18 +208,19 @@ Return valid JSON only:"""
         
         system_prompt = """You are an asset recommendation system for retail media creatives.
 
-Given a user's creative intent and a list of available assets, recommend ONLY the most relevant assets that match the prompt exactly.
+Given a user's creative intent and a list of available assets, recommend the most relevant assets.
 
-CRITICAL: Only recommend assets that directly match the user's prompt. Do not include unrelated products.
+IMPORTANT: Always return exactly 8 asset IDs. If fewer than 8 assets match exactly, include the next most relevant assets to reach 8 total.
 
 Consider:
 - Exact product category matching
 - Description relevance to the prompt
 - Product name matching
 - Brand matching if mentioned
+- General category relevance if exact matches are limited
 
-Return ONLY a JSON array of asset IDs (sample_id values), ordered by relevance. Return fewer assets if needed, but ensure they all match the prompt.
-Example: ["33127", "55858"]"""
+Return ONLY a JSON array of exactly 8 asset IDs (sample_id values), ordered by relevance.
+Example: ["33127", "55858", "12345", "67890", "11111", "22222", "33333", "44444"]"""
 
         user_message = f"""User intent: "{prompt}"
 
@@ -216,7 +231,7 @@ Recommend ONLY assets that match "{prompt}". Return JSON array of sample_id valu
 
         try:
             response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-haiku-20240307",
                 max_tokens=1000,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}]
@@ -236,9 +251,13 @@ Recommend ONLY assets that match "{prompt}". Return JSON array of sample_id valu
                 if asset and asset.local_path:
                     recommended_paths.append(asset.local_path)
             
-            if len(recommended_paths) == 0:
+            if len(recommended_paths) < max_assets:
                 keyword_results = asset_manager.search(prompt, limit=max_assets)
-                return keyword_results
+                for result in keyword_results:
+                    if result not in recommended_paths:
+                        recommended_paths.append(result)
+                        if len(recommended_paths) >= max_assets:
+                            break
             
             return recommended_paths[:max_assets]
             
@@ -273,7 +292,7 @@ Generate a neutral background description:"""
 
         try:
             response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-haiku-20240307",
                 max_tokens=200,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}]
@@ -355,7 +374,7 @@ Determine optimal UNIQUE position and size for this specific product. Return JSO
 
         try:
             response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-haiku-20240307",
                 max_tokens=500,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}]
@@ -440,30 +459,45 @@ Determine optimal UNIQUE position and size for this specific product. Return JSO
         
         import random
         attempts = 0
-        while attempts < 20:
-            x = random.randint(100, canvas_width - 500)
-            y = random.randint(200, canvas_height - 600)
-            overlaps = False
-            for area in occupied_areas:
-                if not (x + 400 < area["x1"] or x > area["x2"] or y + 400 < area["y1"] or y > area["y2"]):
-                    overlaps = True
-                    break
-            if not overlaps:
-                return {
-                    "x": x,
-                    "y": y,
-                    "width": 400,
-                    "height": 400
-                }
-            attempts += 1
+        max_x = max(100, canvas_width - 500)
+        max_y = max(200, canvas_height - 600)
+        
+        if max_x > 100 and max_y > 200:
+            while attempts < 20:
+                x = random.randint(100, max_x)
+                y = random.randint(200, max_y)
+                overlaps = False
+                for area in occupied_areas:
+                    if not (x + 400 < area["x1"] or x > area["x2"] or y + 400 < area["y1"] or y > area["y2"]):
+                        overlaps = True
+                        break
+                if not overlaps:
+                    return {
+                        "x": x,
+                        "y": y,
+                        "width": 400,
+                        "height": 400
+                    }
+                attempts += 1
         
         last_element = canvas_elements[-1]
-        x = (last_element.get("x", 200) + last_element.get("width", 400) + 100) % (canvas_width - 450)
-        y = (last_element.get("y", 200) + 100) % (canvas_height - 500)
+        safe_x_range = max(100, canvas_width - 450)
+        safe_y_range = max(200, canvas_height - 500)
+        
+        if safe_x_range <= 100:
+            safe_x_range = 100
+        if safe_y_range <= 200:
+            safe_y_range = 200
+        
+        x = (last_element.get("x", 200) + last_element.get("width", 400) + 100) % safe_x_range
+        y = (last_element.get("y", 200) + 100) % safe_y_range
+        
+        x = max(50, min(canvas_width - 450, x))
+        y = max(100, min(canvas_height - 500, y))
         
         return {
-            "x": max(50, min(canvas_width - 450, x)),
-            "y": max(100, min(canvas_height - 500, y)),
+            "x": x,
+            "y": y,
             "width": 400,
             "height": 400
         }

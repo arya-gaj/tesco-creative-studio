@@ -9,5 +9,5 @@ diffusers>=0.24.0
 transformers>=4.35.0
 torch>=2.1.0
 accelerate>=0.24.0
-rembg==2.0.50
+rembg>=2.0.62
 

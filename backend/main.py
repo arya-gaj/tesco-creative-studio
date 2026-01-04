@@ -55,31 +55,55 @@ class LocalGen:
                 
                 self.sd_pipe = StableDiffusionPipeline.from_pretrained(
                     "runwayml/stable-diffusion-v1-5",
-                    torch_dtype=self.dtype,
-                    safety_checker=None,
-                    requires_safety_checker=False
+                    torch_dtype=self.dtype
                 )
                 self.sd_pipe.to(self.device)
                 self.sd_pipe.enable_attention_slicing()
                 
                 def dummy_safety_checker(images, clip_input):
-                    return images, [False] * len(images)
+                    return images, [False] * len(images) if isinstance(images, list) else [False]
                 
-                if hasattr(self.sd_pipe, 'safety_checker'):
-                    self.sd_pipe.safety_checker = dummy_safety_checker
+                class DummyFeatureExtractor:
+                    def __call__(self, images, return_tensors="pt"):
+                        if isinstance(images, list):
+                            batch_size = len(images)
+                        else:
+                            batch_size = 1
+                        dummy_tensor = torch.zeros((batch_size, 3, 224, 224))
+                        class DummyOutput:
+                            def __init__(self, tensor):
+                                self.pixel_values = tensor
+                            def to(self, device):
+                                self.pixel_values = self.pixel_values.to(device)
+                                return self
+                        return DummyOutput(dummy_tensor)
+                
+                dummy_feature_extractor = DummyFeatureExtractor()
+                
+                self.sd_pipe.safety_checker = dummy_safety_checker
+                self.sd_pipe.requires_safety_checker = False
+                
                 if hasattr(self.sd_pipe, 'feature_extractor'):
-                    self.sd_pipe.feature_extractor = None
+                    self.sd_pipe.feature_extractor = dummy_feature_extractor
                 if hasattr(self.sd_pipe, '_safety_checker'):
                     self.sd_pipe._safety_checker = dummy_safety_checker
                 if hasattr(self.sd_pipe, 'components'):
                     if 'safety_checker' in self.sd_pipe.components:
                         self.sd_pipe.components['safety_checker'] = dummy_safety_checker
                     if 'feature_extractor' in self.sd_pipe.components:
-                        self.sd_pipe.components['feature_extractor'] = None
+                        self.sd_pipe.components['feature_extractor'] = dummy_feature_extractor
                 
-                print(f"[LocalGen] Stable Diffusion loaded on CPU (safety checker completely disabled)")
+                if hasattr(self.sd_pipe, '_run_safety_checker'):
+                    def bypass_safety(self, image, device, dtype):
+                        return image, [False]
+                    import types
+                    self.sd_pipe._run_safety_checker = types.MethodType(bypass_safety, self.sd_pipe)
+                
+                print(f"[LocalGen] Stable Diffusion loaded on CPU (safety checker replaced with dummy)")
             except Exception as e:
                 print(f"[LocalGen] Failed to load Stable Diffusion: {e}")
+                import traceback
+                traceback.print_exc()
                 self.sd_pipe = "failed"
 
     def _init_transformer(self):
@@ -103,8 +127,22 @@ class LocalGen:
         if self.sd_pipe == "failed":
             return None
 
-        # Skip transformer for speed - use direct prompt
-        sd_prompt = f"{prompt}, {background_desc}, professional retail background, clean, commercial photography"
+        # Convert TOON to Stable Diffusion prompt
+        toon_prompt_parts = []
+        if toon and isinstance(toon, dict):
+            if 'colors' in toon:
+                colors = toon.get('colors', {})
+                if colors.get('background'):
+                    toon_prompt_parts.append(f"background color {colors['background']}")
+                if colors.get('primary'):
+                    toon_prompt_parts.append(f"accent color {colors['primary']}")
+            if 'format' in toon:
+                toon_prompt_parts.append(f"{toon['format']} format")
+            if 'layout' in toon and toon['layout'].get('type'):
+                toon_prompt_parts.append(f"{toon['layout']['type']} layout")
+        
+        toon_context = ", ".join(toon_prompt_parts) if toon_prompt_parts else ""
+        sd_prompt = f"{prompt}, {background_desc}, {toon_context}, professional retail background, clean, commercial photography".strip(", ")
 
         # Fast CPU generation: minimal steps, small size
         try:
@@ -114,39 +152,98 @@ class LocalGen:
             warnings.filterwarnings("ignore", message=".*NSFW.*")
             warnings.filterwarnings("ignore", message=".*safety.*")
             
-            if hasattr(self.sd_pipe, 'safety_checker'):
-                self.sd_pipe.safety_checker = None
+            def dummy_safety_checker(images, clip_input):
+                return images, [False] * len(images) if isinstance(images, list) else [False]
+            
+            class DummyFeatureExtractor:
+                def __call__(self, images, return_tensors="pt"):
+                    if isinstance(images, list):
+                        batch_size = len(images)
+                    else:
+                        batch_size = 1
+                    dummy_tensor = torch.zeros((batch_size, 3, 224, 224))
+                    class DummyOutput:
+                        def __init__(self, tensor):
+                            self.pixel_values = tensor
+                        def to(self, device):
+                            self.pixel_values = self.pixel_values.to(device)
+                            return self
+                    return DummyOutput(dummy_tensor)
+            
+            dummy_feature_extractor = DummyFeatureExtractor()
+            
+            self.sd_pipe.safety_checker = dummy_safety_checker
+            self.sd_pipe.requires_safety_checker = False
             if hasattr(self.sd_pipe, 'feature_extractor'):
-                self.sd_pipe.feature_extractor = None
+                self.sd_pipe.feature_extractor = dummy_feature_extractor
+            if hasattr(self.sd_pipe, '_safety_checker'):
+                self.sd_pipe._safety_checker = dummy_safety_checker
+            if hasattr(self.sd_pipe, 'components'):
+                if 'safety_checker' in self.sd_pipe.components:
+                    self.sd_pipe.components['safety_checker'] = dummy_safety_checker
+                if 'feature_extractor' in self.sd_pipe.components:
+                    self.sd_pipe.components['feature_extractor'] = dummy_feature_extractor
             
             import random
             import time
             seed = random.randint(0, 2**32 - 1) + int(time.time() * 1000) % 10000
             
-            def dummy_safety_checker(images, clip_input):
-                return images, [False] * len(images)
-            
-            if hasattr(self.sd_pipe, 'safety_checker'):
-                self.sd_pipe.safety_checker = dummy_safety_checker
+            if hasattr(self.sd_pipe, '_run_safety_checker'):
+                def bypass_safety(self, image, device, dtype):
+                    return image, [False]
+                import types
+                self.sd_pipe._run_safety_checker = types.MethodType(bypass_safety, self.sd_pipe)
             
             with torch.inference_mode():
-                result = self.sd_pipe(
-                    prompt=sd_prompt,
-                    num_inference_steps=4,
-                    guidance_scale=3.0,
-                    height=256,
-                    width=256,
-                    output_type="pil",
-                    generator=torch.Generator(device=self.device).manual_seed(seed)
-                )
-                if hasattr(result, 'images') and len(result.images) > 0:
+                try:
+                    result = self.sd_pipe(
+                        prompt=sd_prompt,
+                        num_inference_steps=4,
+                        guidance_scale=3.0,
+                        height=256,
+                        width=256,
+                        output_type="pil",
+                        generator=torch.Generator(device=self.device).manual_seed(seed)
+                    )
+                except Exception as e:
+                    if "'NoneType' object is not callable" in str(e) or "not callable" in str(e):
+                        print(f"[LocalGen] Safety checker error, bypassing completely...")
+                        if hasattr(self.sd_pipe, '_run_safety_checker'):
+                            def bypass_safety(self, image, device, dtype):
+                                return image, [False]
+                            import types
+                            self.sd_pipe._run_safety_checker = types.MethodType(bypass_safety, self.sd_pipe)
+                        self.sd_pipe.safety_checker = dummy_safety_checker
+                        self.sd_pipe.requires_safety_checker = False
+                        if hasattr(self.sd_pipe, 'components'):
+                            self.sd_pipe.components['safety_checker'] = dummy_safety_checker
+                        result = self.sd_pipe(
+                            prompt=sd_prompt,
+                            num_inference_steps=4,
+                            guidance_scale=3.0,
+                            height=256,
+                            width=256,
+                            output_type="pil",
+                            generator=torch.Generator(device=self.device).manual_seed(seed)
+                        )
+                    else:
+                        raise
+                image = None
+                if hasattr(result, 'images') and result.images and len(result.images) > 0:
                     image = result.images[0]
+                    print(f"[LocalGen] Extracted image from result.images, size: {image.size if hasattr(image, 'size') else 'unknown'}")
                 elif isinstance(result, list) and len(result) > 0:
                     image = result[0]
-                elif hasattr(result, 'image'):
+                    print(f"[LocalGen] Extracted image from result list, size: {image.size if hasattr(image, 'size') else 'unknown'}")
+                elif hasattr(result, 'image') and result.image is not None:
                     image = result.image
-                else:
+                    print(f"[LocalGen] Extracted image from result.image, size: {image.size if hasattr(image, 'size') else 'unknown'}")
+                elif isinstance(result, Image.Image):
                     image = result
+                    print(f"[LocalGen] Result is Image.Image, size: {image.size if hasattr(image, 'size') else 'unknown'}")
+                else:
+                    print(f"[LocalGen] ERROR: Could not extract image from result. Result type: {type(result)}, hasattr images: {hasattr(result, 'images')}")
+                    raise ValueError("Failed to extract image from Stable Diffusion result")
                 
                 if image and hasattr(image, 'size'):
                     if image.size == (1, 1) or (hasattr(image, 'mode') and image.mode == 'L' and image.size[0] == 1):
@@ -177,6 +274,9 @@ class LocalGen:
             return base64.b64encode(buffer.getvalue()).decode('utf-8')
         except Exception as e:
             print(f"[LocalGen] SD generation failed: {e}")
+            import traceback
+            print(f"[LocalGen] Full traceback:")
+            traceback.print_exc()
             return None
 
 app = FastAPI(
@@ -321,17 +421,18 @@ async def generate_creative(request: GenerateRequest):
         
         # Fast fallback to PIL if local generation fails or takes too long
         if not img_base64:
-            print("[Backend] Local generation failed or not initialized, falling back to PIL")
+            print(f"[Backend] Local generation failed or not initialized, falling back to PIL")
+            print(f"[Backend] Debug: normalized_intent={normalized_intent[:50]}")
+            print(f"[Backend] Debug: background_description={background_description[:50] if background_description else 'None'}")
+            import traceback
+            traceback.print_exc()
             img = Image.new('RGB', (1080, 1920), color='#f8fafc')
             draw = ImageDraw.Draw(img)
             
             try:
-                font = ImageFont.truetype("arial.ttf", 60)
+                font = ImageFont.load_default()
             except:
-                try:
-                    font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 60)
-                except:
-                    font = ImageFont.load_default()
+                font = None
             
             text = normalized_intent[:50] + "..." if len(normalized_intent) > 50 else normalized_intent
             
@@ -344,12 +445,9 @@ async def generate_creative(request: GenerateRequest):
             if background_description:
                 desc_text = background_description[:100] + "..." if len(background_description) > 100 else background_description
                 try:
-                    desc_font = ImageFont.truetype("arial.ttf", 40)
+                    desc_font = ImageFont.load_default()
                 except:
-                    try:
-                        desc_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 40)
-                    except:
-                        desc_font = ImageFont.load_default()
+                    desc_font = None
                 
                 desc_x = 50
                 desc_y = y + 200
