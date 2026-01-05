@@ -12,7 +12,7 @@ Install Python 3.8 or higher from python.org. During installation, check "Add Py
 
 Install Node.js 16 or higher from nodejs.org (includes npm). Choose the LTS version.
 
-Get an Anthropic Claude API key from console.anthropic.com. Sign up, navigate to API Keys, create a new key, and copy it (starts with sk-ant-...). You can use this API key (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) for the demo on your local machine. Please note that there is a rate limit of 5 API requests per minute.
+Get an Anthropic Claude API key from console.anthropic.com. Sign up, navigate to API Keys, create a new key, and copy it (starts with sk-ant-...).
 
 ## Setup Instructions
 
